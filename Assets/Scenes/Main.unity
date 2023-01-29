@@ -291,7 +291,11 @@ MonoBehaviour:
   m_tfCameraPos: {fileID: 1457815223}
   m_fSensitiveX: 400
   m_fSensitiveY: 400
-  m_fMoveSpeed: 4
+  m_pCursorKey: 308
+  m_fWalkSpeed: 6
+  m_fSprintSpeed: 10
+  m_pSprintKey: 304
+  m_bSwitchSprint: 0
   m_fPlayerHeight: 1.5
   m_lmGround:
     serializedVersion: 2
@@ -302,6 +306,9 @@ MonoBehaviour:
   m_fJumpForce: 4
   m_fJumpCooldown: 1
   m_fAirMutiplier: 0.6
+  m_pCrouchKey: 306
+  m_bSwitchCrouch: 0
+  m_fCrouchSpeed: 2
 --- !u!4 &539260473 stripped
 Transform:
   m_CorrespondingSourceObject: {fileID: 7283161222773238523, guid: 53b9603c303d0d1468176f2cc11d9c8a, type: 3}
