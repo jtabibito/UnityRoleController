@@ -19,8 +19,15 @@ public class PlayerController : MonoBehaviour
     public float m_fSensitiveX = 600f;
     public float m_fSensitiveY = 600f;
 
+    [Header("Cursor control key")]
+    public KeyCode m_pCursorKey = KeyCode.LeftAlt;
+
     [Header("Player movement properties")]
-    public float m_fMoveSpeed = 6f;
+    private float m_fMoveSpeed;
+    public float m_fWalkSpeed = 6f;
+    public float m_fSprintSpeed = 8f;
+    public KeyCode m_pSprintKey = KeyCode.LeftShift;
+    public bool m_bSwitchSprint = false;
     private Vector3 _m_v3MoveDir;
 
     public float m_fPlayerHeight;
@@ -36,6 +43,10 @@ public class PlayerController : MonoBehaviour
     public float m_fAirMutiplier = 0.6f;
     private bool _m_bJumpReady = true;
 
+    public KeyCode m_pCrouchKey = KeyCode.LeftControl;
+    public bool m_bSwitchCrouch = false;
+    public float m_fCrouchSpeed = 2f;
+
     private InputManager.InputData _m_pInputData;
 
     void Awake()
@@ -45,7 +56,37 @@ public class PlayerController : MonoBehaviour
     }
     void Start()
     {
-        _m_pInputData.SetJumpKey(m_pJumpKey);
+        m_fMoveSpeed = m_fWalkSpeed;
+
+        _m_pInputData.SetCursorKey(m_pCursorKey, new InputManager.KeyEvent() {
+            m_pfnPress = _m_pInputData.UnlockCursor,
+            m_pfnNotPress = _m_pInputData.LockCursor
+        });
+        _m_pInputData.SetJumpKey(m_pJumpKey, new InputManager.KeyEvent() {
+            m_pfnPress = () => {
+                if (_m_bJumpReady && m_bOnGround)
+                {
+                    _m_bJumpReady = false;
+                    PlayerJump();
+                    Invoke("ResetJump", m_fJumpCooldown);
+                }
+            }
+        });
+        _m_pInputData.SetSprintKey(m_pSprintKey, new InputManager.KeyEvent() {
+            m_pfnPress = () => {
+                if (m_bOnGround)
+                {
+                    m_fMoveSpeed = m_fSprintSpeed;
+                }
+            },
+            m_pfnUp = () => {
+                m_fMoveSpeed = m_fWalkSpeed;
+            }
+        }, m_bSwitchSprint);
+        _m_pInputData.SetCrouchKey(m_pCrouchKey, new InputManager.KeyEvent() {
+            m_pfnDown = PlayerCrouchStart,
+            m_pfnUp = PlayerCrouchOver
+        }, m_bSwitchCrouch);
     }
 
     // Update is called once per frame
@@ -55,16 +96,7 @@ public class PlayerController : MonoBehaviour
 
         m_bOnGround = Physics.Raycast(m_pRigidbody.transform.position + 0.5f*m_fPlayerHeight * m_pRigidbody.transform.up, Vector3.down, 0.5f*m_fPlayerHeight + 0.3f, m_lmGround);
 
-        // 检测按键
-        _m_pInputData.PressLeftAlt(_m_pInputData.UnlockCursor, _m_pInputData.LockCursor);
-        _m_pInputData.PressJump(() => {
-            if (_m_bJumpReady && m_bOnGround)
-            {
-                _m_bJumpReady = false;
-                PlayerJump();
-                Invoke("ResetJump", m_fJumpCooldown);
-            }
-        });
+        InputHandler();
         SpeedControl();
 
         // 旋转视角
@@ -86,6 +118,14 @@ public class PlayerController : MonoBehaviour
         PlayerMove();
     }
 
+    private void InputHandler()
+    {
+        // 检测按键
+        _m_pInputData.PressCursor();
+        _m_pInputData.PressJump();
+        _m_pInputData.PressSprint();
+        _m_pInputData.PressCrouch();
+    }
     private void MoveEyes()
     {
         m_tfEyeCamera.position = m_tfCameraPos.position;
@@ -133,5 +173,17 @@ public class PlayerController : MonoBehaviour
             v3FlatSpeed.y = m_pRigidbody.velocity.y;
             m_pRigidbody.velocity = v3FlatSpeed;
         }
+    }
+    
+    private void PlayerCrouchStart()
+    {
+        m_fMoveSpeed = m_fCrouchSpeed;
+        m_pRigidbody.transform.localScale = new Vector3(1, 0.5f, 1);
+        // m_pRigidbody.AddForce(Vector3.down * 80f, ForceMode.Impulse);
+    }
+    private void PlayerCrouchOver()
+    {
+        m_fMoveSpeed = m_fWalkSpeed;
+        m_pRigidbody.transform.localScale = Vector3.one;
     }
 }
