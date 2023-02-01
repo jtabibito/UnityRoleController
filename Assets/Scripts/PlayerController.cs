@@ -32,7 +32,7 @@ public class PlayerController : MonoBehaviour
 
     public float m_fPlayerHeight;
     public LayerMask m_lmGround;
-    private bool m_bOnGround = true;
+    private bool _m_bOnGround = true;
 
     public float m_fGroundDrag = 2f;
     public float m_fAirDrag = 0.9f;
@@ -46,6 +46,10 @@ public class PlayerController : MonoBehaviour
     public KeyCode m_pCrouchKey = KeyCode.LeftControl;
     public bool m_bSwitchCrouch = false;
     public float m_fCrouchSpeed = 2f;
+
+    public float m_fMaxSlopeAngle = 60f;
+    private RaycastHit _m_pHitInfo;
+    private bool _m_bExitSlope = false;
 
     private InputManager.InputData _m_pInputData;
 
@@ -64,7 +68,7 @@ public class PlayerController : MonoBehaviour
         });
         _m_pInputData.SetJumpKey(m_pJumpKey, new InputManager.KeyEvent() {
             m_pfnPress = () => {
-                if (_m_bJumpReady && m_bOnGround)
+                if (_m_bJumpReady && _m_bOnGround)
                 {
                     _m_bJumpReady = false;
                     PlayerJump();
@@ -74,7 +78,7 @@ public class PlayerController : MonoBehaviour
         });
         _m_pInputData.SetSprintKey(m_pSprintKey, new InputManager.KeyEvent() {
             m_pfnPress = () => {
-                if (m_bOnGround)
+                if (_m_bOnGround)
                 {
                     m_fMoveSpeed = m_fSprintSpeed;
                 }
@@ -94,7 +98,7 @@ public class PlayerController : MonoBehaviour
     {
         _m_pInputData.GetInput();
 
-        m_bOnGround = Physics.Raycast(m_pRigidbody.transform.position + 0.5f*m_fPlayerHeight * m_pRigidbody.transform.up, Vector3.down, 0.5f*m_fPlayerHeight + 0.3f, m_lmGround);
+        _m_bOnGround = Physics.Raycast(m_pRigidbody.transform.position + 0.5f*m_fPlayerHeight * m_pRigidbody.transform.up, Vector3.down, 0.5f*m_fPlayerHeight + 0.3f, m_lmGround);
 
         InputHandler();
         SpeedControl();
@@ -103,7 +107,7 @@ public class PlayerController : MonoBehaviour
         MoveEyes();
         RotateEyes();
 
-        if (m_bOnGround)
+        if (_m_bOnGround)
         {
             m_pRigidbody.drag = m_fGroundDrag;
         }
@@ -142,18 +146,28 @@ public class PlayerController : MonoBehaviour
     {
         Vector2 v2DirAxis = _m_pInputData.GetDirAxis();
         _m_v3MoveDir = m_tfOrientation.forward * v2DirAxis.y + m_tfOrientation.right * v2DirAxis.x;
-    
-        if (m_bOnGround)
+
+        if (IsOnSlope() && !_m_bExitSlope)
+        {
+            m_pRigidbody.AddForce(GetSlopeDirection() * m_fMoveSpeed * 10f, ForceMode.Force);
+            if (m_pRigidbody.velocity.y > 0)
+            {
+                m_pRigidbody.AddForce(Vector3.down * 80f, ForceMode.Force);
+            }
+        }
+        else if (_m_bOnGround)
         {
             m_pRigidbody.AddForce(_m_v3MoveDir.normalized * m_fMoveSpeed * 10f, ForceMode.Force);
         }
-        else
+        else if (!_m_bOnGround)
         {
             m_pRigidbody.AddForce(_m_v3MoveDir.normalized * m_fMoveSpeed * 10f * m_fAirMutiplier, ForceMode.Force);
         }
     }
     private void PlayerJump()
     {
+        _m_bExitSlope = true;
+
         // 重置y轴速度
         m_pRigidbody.velocity = new Vector3(m_pRigidbody.velocity.x, 0, m_pRigidbody.velocity.z);
 
@@ -162,16 +176,28 @@ public class PlayerController : MonoBehaviour
     private void ResetJump()
     {
         _m_bJumpReady = true;
+
+        _m_bExitSlope = false;
     }
 
     private void SpeedControl()
     {
-        Vector3 v3FlatSpeed = new Vector3(m_pRigidbody.velocity.x, 0, m_pRigidbody.velocity.z);
-        if (v3FlatSpeed.magnitude > m_fMoveSpeed)
+        if (IsOnSlope())
         {
-            v3FlatSpeed = m_fMoveSpeed*v3FlatSpeed.normalized;
-            v3FlatSpeed.y = m_pRigidbody.velocity.y;
-            m_pRigidbody.velocity = v3FlatSpeed;
+            if (m_pRigidbody.velocity.magnitude > m_fMoveSpeed)
+            {
+                m_pRigidbody.velocity = m_fMoveSpeed * m_pRigidbody.velocity.normalized;
+            }
+        }
+        else
+        {
+            Vector3 v3FlatSpeed = new Vector3(m_pRigidbody.velocity.x, 0, m_pRigidbody.velocity.z);
+            if (v3FlatSpeed.magnitude > m_fMoveSpeed)
+            {
+                v3FlatSpeed = m_fMoveSpeed*v3FlatSpeed.normalized;
+                v3FlatSpeed.y = m_pRigidbody.velocity.y;
+                m_pRigidbody.velocity = v3FlatSpeed;
+            }
         }
     }
     
@@ -185,5 +211,20 @@ public class PlayerController : MonoBehaviour
     {
         m_fMoveSpeed = m_fWalkSpeed;
         m_pRigidbody.transform.localScale = Vector3.one;
+    }
+
+    private bool IsOnSlope()
+    {
+        if (Physics.Raycast(m_pRigidbody.transform.position + 0.5f*m_fPlayerHeight * m_pRigidbody.transform.up, Vector3.down, out _m_pHitInfo, 0.5f*m_fPlayerHeight + 0.3f))
+        {
+            float fAngle = Vector3.Angle(_m_pHitInfo.normal, Vector3.up);
+            return fAngle < m_fMaxSlopeAngle && fAngle != 0;
+        }
+        return false;
+    }
+
+    private Vector3 GetSlopeDirection()
+    {
+        return Vector3.ProjectOnPlane(_m_v3MoveDir, _m_pHitInfo.normal).normalized;
     }
 }
